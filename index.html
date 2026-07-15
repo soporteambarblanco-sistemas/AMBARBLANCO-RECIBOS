@@ -151,6 +151,38 @@
     font-size:16px; padding: 6px; line-height:1;
   }
   .del-btn:hover{ color: var(--maroon); }
+  .catalogo-grupo{ margin-bottom: 12px; }
+  .catalogo-grupo .nombre{
+    font-family:'Helvetica Neue', Arial, sans-serif;
+    font-size: 11.5px; font-weight:700; color: var(--negro);
+    margin-bottom: 6px;
+  }
+  .chip-row{ display:flex; flex-wrap:wrap; gap:6px; }
+  .chip{
+    font-family:'Helvetica Neue', Arial, sans-serif;
+    font-size: 11.5px;
+    background: var(--crema);
+    border: 1px solid var(--gris-claro);
+    color: var(--negro);
+    padding: 7px 11px;
+    border-radius: 20px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .chip:hover{ background: var(--maroon); border-color: var(--maroon); color: var(--blanco); }
+  .chip .p{ color: var(--maroon); font-weight:700; margin-left:4px; }
+  .chip:hover .p{ color: var(--ambar); }
+  .chip-activo{ background: var(--negro); border-color: var(--negro); color: var(--blanco); }
+  .chip-activo:hover{ background: var(--negro); border-color: var(--negro); }
+
+  .np-tamano-row{ display:flex; gap:8px; margin: 8px 0; align-items:center; }
+  .np-tamano-row input{
+    padding: 8px 10px; font-size:13px; border:1px solid var(--gris-claro);
+    border-radius:3px; background: var(--crema); font-family:'Helvetica Neue', Arial, sans-serif;
+  }
+  .np-tamano-row .np-etiqueta{ flex:1.4; }
+  .np-tamano-row .np-precio{ flex:1; }
+
   .add-item-btn{
     font-family:'Helvetica Neue', Arial, sans-serif;
     font-size: 11.5px; letter-spacing: 0.5px;
@@ -344,7 +376,29 @@
         <input type="email" id="clienteCorreo" placeholder="cliente@correo.com" oninput="actualizar()">
       </div>
 
-      <h2>Conceptos</h2>
+      <h2>Catálogo rápido</h2>
+      <p class="help-text" style="margin-bottom:10px;">Toca un aroma y tamaño para agregarlo directo al recibo.</p>
+      <div id="catalogo"></div>
+
+      <button class="config-toggle" onclick="toggleNuevoProducto()" style="margin-top:14px;">+ Agregar producto nuevo al catálogo</button>
+      <div class="config-box" id="nuevoProductoBox">
+        <div class="field" style="margin-top:12px;">
+          <label>Nombre del producto</label>
+          <input type="text" id="np-nombre" placeholder="Ej. Vela Ámbar">
+        </div>
+        <div id="np-tamanos"></div>
+        <button type="button" class="add-item-btn" onclick="npAgregarTamano()">+ Agregar presentación / tamaño</button>
+        <div class="field" style="margin-top:12px;">
+          <label>Nota (opcional)</label>
+          <input type="text" id="np-nota" placeholder="Ej. incluye empaque de regalo">
+        </div>
+        <div class="actions" style="margin-top:14px;">
+          <button class="btn btn-primary" onclick="guardarProductoNuevo()">Guardar producto</button>
+        </div>
+        <p class="help-text">Se guarda en tu Google Sheets (pestaña "Catálogo") y aparece como chip aquí en todos tus dispositivos.</p>
+      </div>
+
+      <h2 style="margin-top:20px;">Conceptos</h2>
       <table class="items-table">
         <thead>
           <tr>
@@ -477,6 +531,186 @@
 </div>
 
 <script>
+// ===== CATÁLOGO DE PRODUCTOS =====
+const AROMAS = [
+  { grupo: 'Maderosos', nombres: ['San Miguel de Allende', 'Mazamitla', 'Valle de Bravo'] },
+  { grupo: 'Frescos', nombres: ['Holbox', 'Cancún', 'Punta Mita'] },
+  { grupo: 'Icónicos', nombres: ['UNO · Palacio de Hierro', 'DOS · Vidanta', 'TRES · Cosmopolitan Las Vegas'] },
+];
+
+const PRODUCTOS = [
+  { nombre: 'Room Spray', tamanos: [
+    { etiqueta: '100 ml', precio: 330 },
+    { etiqueta: '250 ml', precio: 530 },
+    { etiqueta: '500 ml', precio: 930 },
+    { etiqueta: '1 L', precio: 1590 },
+  ]},
+  { nombre: 'Esencia para Difusor', tamanos: [
+    { etiqueta: '100 g', precio: 530 },
+    { etiqueta: '250 g', precio: 930 },
+    { etiqueta: '500 g', precio: 1590 },
+    { etiqueta: '1 kg', precio: 2300 },
+  ]},
+  { nombre: 'Difusor (equipo)', tamanos: [
+    { etiqueta: 'Equipo completo', precio: 2300, nota: 'incluye 100g (1 mes) del aroma elegido' },
+  ]},
+];
+
+let aromaSeleccionado = null;
+let PRODUCTOS_EXTRA = [];
+
+function renderCatalogo(){
+  const cont = document.getElementById('catalogo');
+  cont.innerHTML = '';
+
+  // --- Selector de aroma ---
+  const bloqueAromas = document.createElement('div');
+  bloqueAromas.className = 'catalogo-grupo';
+  let aromaHtml = `<div class="nombre">Aroma (opcional, elige uno)</div>`;
+  AROMAS.forEach(g => {
+    aromaHtml += `<div class="chip-row" style="margin-bottom:6px;">`;
+    g.nombres.forEach(n => {
+      const activo = aromaSeleccionado === n ? 'chip-activo' : '';
+      aromaHtml += `<button type="button" class="chip ${activo}" onclick="seleccionarAroma('${n.replace(/'/g,"\\'")}')">${n}</button>`;
+    });
+    aromaHtml += `</div>`;
+  });
+  aromaHtml += `<div class="chip-row"><button type="button" class="chip" onclick="seleccionarAroma(null)">Sin aroma específico</button></div>`;
+  bloqueAromas.innerHTML = aromaHtml;
+  cont.appendChild(bloqueAromas);
+
+  // --- Productos y tamaños (catálogo base + productos agregados desde Sheets) ---
+  const todosLosProductos = PRODUCTOS.concat(PRODUCTOS_EXTRA);
+  todosLosProductos.forEach(prod => {
+    const grupo = document.createElement('div');
+    grupo.className = 'catalogo-grupo';
+    const chips = prod.tamanos.map(t =>
+      `<button type="button" class="chip" onclick="agregarDesdeCatalogo('${prod.nombre.replace(/'/g,"\\'")}', '${t.etiqueta.replace(/'/g,"\\'")}', ${t.precio}, ${t.nota ? `'${t.nota.replace(/'/g,"\\'")}'` : 'null'})">${t.etiqueta} <span class="p">$${Number(t.precio).toLocaleString('es-MX')}</span></button>`
+    ).join('');
+    grupo.innerHTML = `<div class="nombre">${prod.nombre}</div><div class="chip-row">${chips}</div>`;
+    cont.appendChild(grupo);
+  });
+}
+
+async function fetchCatalogoRemoto(){
+  const url = document.getElementById('sheetsUrl').value.trim();
+  if(!url) return;
+  try{
+    const resp = await fetch(url, { method: 'GET' });
+    const filas = await resp.json();
+    const agrupado = {};
+    filas.forEach(f => {
+      if(!f.producto) return;
+      if(!agrupado[f.producto]) agrupado[f.producto] = { nombre: f.producto, tamanos: [] };
+      agrupado[f.producto].tamanos.push({ etiqueta: f.etiqueta, precio: Number(f.precio), nota: f.nota || null });
+    });
+    PRODUCTOS_EXTRA = Object.values(agrupado);
+    renderCatalogo();
+  }catch(err){
+    // Silencioso: si no carga el catálogo remoto, se sigue viendo el catálogo base.
+    console.warn('No se pudo cargar el catálogo remoto', err);
+  }
+}
+
+function seleccionarAroma(nombre){
+  aromaSeleccionado = nombre;
+  renderCatalogo();
+}
+
+function agregarDesdeCatalogo(producto, etiqueta, precio, nota){
+  let descripcion = aromaSeleccionado
+    ? `${producto} · ${aromaSeleccionado} · ${etiqueta}`
+    : `${producto} · ${etiqueta}`;
+  if(nota) descripcion += ` (${nota})`;
+
+  const rows = document.querySelectorAll('#itemsBody tr');
+  let filaVacia = null;
+  rows.forEach(row => {
+    const desc = row.querySelector('.i-desc').value;
+    if(!desc && !filaVacia) filaVacia = row;
+  });
+  if(filaVacia){
+    filaVacia.querySelector('.i-desc').value = descripcion;
+    filaVacia.querySelector('.i-cant').value = 1;
+    filaVacia.querySelector('.i-precio').value = precio;
+  } else {
+    agregarItem(descripcion, 1, precio);
+  }
+  actualizar();
+}
+
+// --- Alta de producto nuevo ---
+let npTamanoCounter = 0;
+
+function toggleNuevoProducto(){
+  const box = document.getElementById('nuevoProductoBox');
+  box.classList.toggle('open');
+  if(box.classList.contains('open') && document.getElementById('np-tamanos').children.length === 0){
+    npAgregarTamano();
+  }
+}
+
+function npAgregarTamano(){
+  npTamanoCounter++;
+  const id = 'np-tam-' + npTamanoCounter;
+  const row = document.createElement('div');
+  row.className = 'np-tamano-row';
+  row.id = id;
+  row.innerHTML = `
+    <input type="text" class="np-etiqueta" placeholder="Ej. 250 ml">
+    <input type="number" class="np-precio" placeholder="Precio" min="0" step="0.01">
+    <button type="button" class="del-btn" onclick="document.getElementById('${id}').remove()">✕</button>
+  `;
+  document.getElementById('np-tamanos').appendChild(row);
+}
+
+async function guardarProductoNuevo(){
+  const nombre = document.getElementById('np-nombre').value.trim();
+  const nota = document.getElementById('np-nota').value.trim();
+  const url = document.getElementById('sheetsUrl').value.trim();
+
+  if(!nombre){
+    setStatus('err', 'Escribe el nombre del producto nuevo.');
+    return;
+  }
+  if(!url){
+    setStatus('err', 'Falta la URL de Google Sheets para guardar el catálogo.');
+    return;
+  }
+
+  const tamanos = [];
+  document.querySelectorAll('#np-tamanos .np-tamano-row').forEach(row => {
+    const etiqueta = row.querySelector('.np-etiqueta').value.trim();
+    const precio = parseFloat(row.querySelector('.np-precio').value);
+    if(etiqueta && !isNaN(precio)) tamanos.push({etiqueta, precio});
+  });
+
+  if(tamanos.length === 0){
+    setStatus('err', 'Agrega al menos una presentación con precio.');
+    return;
+  }
+
+  setStatus('wait', 'Guardando producto...');
+  try{
+    await fetch(url, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: {'Content-Type': 'text/plain'},
+      body: JSON.stringify({ tipo: 'producto', nombre, tamanos, nota })
+    });
+    setStatus('ok', 'Producto "' + nombre + '" guardado. Actualizando catálogo...');
+
+    document.getElementById('np-nombre').value = '';
+    document.getElementById('np-nota').value = '';
+    document.getElementById('np-tamanos').innerHTML = '';
+    npAgregarTamano();
+
+    setTimeout(fetchCatalogoRemoto, 1200);
+  }catch(err){
+    setStatus('err', 'No se pudo guardar. Revisa la URL del Web App.');
+  }
+}
+
 let itemCounter = 0;
 
 function crearItemRow(desc, cant, precio){
@@ -615,22 +849,24 @@ async function descargarPDF(){
   const pdf = new jsPDF('p', 'pt', 'a4');
   const pageWidth = pdf.internal.pageSize.getWidth();
   const pageHeight = pdf.internal.pageSize.getHeight();
-  const imgWidth = pageWidth;
-  const imgHeight = (canvas.height * imgWidth) / canvas.width;
+  const margin = 18;
+  const maxWidth = pageWidth - margin * 2;
+  const maxHeight = pageHeight - margin * 2;
 
-  let heightLeft = imgHeight;
-  let position = 0;
+  // Ajusta TODO el recibo dentro de una sola página, sin cortar nada.
+  // Si el contenido es alto (muchos conceptos), se escala hacia abajo en vez de partirse.
+  let renderWidth = maxWidth;
+  let renderHeight = (canvas.height * renderWidth) / canvas.width;
 
-  pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-  heightLeft -= pageHeight;
-
-  while (heightLeft > 0) {
-    position = heightLeft - imgHeight;
-    pdf.addPage();
-    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-    heightLeft -= pageHeight;
+  if (renderHeight > maxHeight) {
+    renderHeight = maxHeight;
+    renderWidth = (canvas.width * renderHeight) / canvas.height;
   }
 
+  const x = (pageWidth - renderWidth) / 2;
+  const y = margin;
+
+  pdf.addImage(imgData, 'PNG', x, y, renderWidth, renderHeight);
   pdf.save(nombreArchivo);
   setStatus('ok', 'PDF descargado: ' + nombreArchivo);
 }
@@ -694,6 +930,8 @@ async function enviarSheets(){
 
 // Inicializar
 document.getElementById('fecha').valueAsDate = new Date();
+renderCatalogo();
+fetchCatalogoRemoto();
 agregarItem();
 agregarItem();
 actualizar();
