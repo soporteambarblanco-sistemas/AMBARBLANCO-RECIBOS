@@ -254,14 +254,14 @@
     max-width: 800px;
     margin: 0 auto;
     background: var(--blanco);
-    padding: 56px 56px 44px;
+    padding: 44px 44px 32px;
     color: var(--negro);
   }
   .r-header{
     display:flex; justify-content:space-between; align-items:flex-start;
-    border-bottom: 2px solid var(--negro); padding-bottom: 22px; margin-bottom: 26px;
+    border-bottom: 2px solid var(--negro); padding-bottom: 14px; margin-bottom: 18px;
   }
-  .r-header img{ height: 72px; width:auto; }
+  .r-header img{ height: 56px; width:auto; }
   .r-header-right{ text-align:right; font-family:'Helvetica Neue', Arial, sans-serif; }
   .r-header-right .tag{
     font-size: 10px; letter-spacing: 2.5px; color: var(--maroon); text-transform:uppercase; font-weight:700;
@@ -269,67 +269,68 @@
   .r-header-right .folio{ font-size: 13px; color: var(--negro); margin-top:4px; letter-spacing:0.5px;}
   .r-header-right .fecha{ font-size: 12px; color: var(--gris); margin-top:2px; }
 
-  .r-title{ font-size: 24px; font-weight:400; margin: 0 0 22px 0; letter-spacing:0.3px; }
+  .r-title{ font-size: 19px; font-weight:400; margin: 0 0 14px 0; letter-spacing:0.3px; }
 
   .r-meta{
     display:flex; justify-content:space-between;
     font-family:'Helvetica Neue', Arial, sans-serif;
-    margin-bottom: 26px;
+    margin-bottom: 16px;
   }
   .r-meta .block{ max-width: 48%; }
   .r-meta .eyebrow{
-    font-size: 10px; letter-spacing:1.5px; text-transform:uppercase; color: var(--ambar); margin-bottom:6px; font-weight:700;
+    font-size: 10px; letter-spacing:1.5px; text-transform:uppercase; color: var(--ambar); margin-bottom:4px; font-weight:700;
   }
-  .r-meta .name{ font-size: 15px; margin-bottom:3px; }
-  .r-meta .sub{ font-size: 12px; color: var(--gris); line-height:1.5; }
+  .r-meta .name{ font-size: 14px; margin-bottom:2px; }
+  .r-meta .sub{ font-size: 11.5px; color: var(--gris); line-height:1.45; }
 
-  .r-items{ width:100%; border-collapse:collapse; margin-bottom: 6px; }
+  .r-items{ width:100%; border-collapse:collapse; margin-bottom: 4px; table-layout:fixed; }
   .r-items thead th{
     font-family:'Helvetica Neue', Arial, sans-serif;
-    font-size: 10px; letter-spacing:1px; text-transform:uppercase; color: var(--gris);
-    text-align:left; padding: 10px 8px; border-bottom: 1px solid var(--negro);
+    font-size: 9.5px; letter-spacing:1px; text-transform:uppercase; color: var(--gris);
+    text-align:left; padding: 7px 6px; border-bottom: 1px solid var(--negro);
   }
   .r-items thead th.num{ text-align:right; }
   .r-items tbody td{
     font-family:'Helvetica Neue', Arial, sans-serif;
-    font-size: 13px; padding: 10px 8px; border-bottom: 1px solid var(--linea);
+    font-size: 12px; padding: 7px 6px; border-bottom: 1px solid var(--linea);
+    line-height:1.35; word-break: break-word;
   }
   .r-items tbody td.num{ text-align:right; white-space:nowrap; }
 
-  .r-totals{ display:flex; justify-content:flex-end; margin-top: 16px; }
-  .r-totals table{ font-family:'Helvetica Neue', Arial, sans-serif; font-size:13px; }
-  .r-totals td{ padding: 5px 0 5px 28px; text-align:right; }
+  .r-totals{ display:flex; justify-content:flex-end; margin-top: 10px; }
+  .r-totals table{ font-family:'Helvetica Neue', Arial, sans-serif; font-size:12.5px; }
+  .r-totals td{ padding: 4px 0 4px 24px; text-align:right; }
   .r-totals .lbl{ color: var(--gris); }
   .r-totals .total-row td{
-    border-top: 2px solid var(--negro); padding-top:10px; font-size:16px; font-weight:700; color: var(--maroon);
+    border-top: 2px solid var(--negro); padding-top:8px; font-size:15px; font-weight:700; color: var(--maroon);
   }
 
   .r-footer-meta{
-    display:flex; gap:40px; margin-top: 30px; padding-top:20px; border-top: 1px solid var(--linea);
-    font-family:'Helvetica Neue', Arial, sans-serif; font-size:12px;
+    display:flex; gap:40px; margin-top: 18px; padding-top:14px; border-top: 1px solid var(--linea);
+    font-family:'Helvetica Neue', Arial, sans-serif; font-size:11.5px;
   }
-  .r-footer-meta .eyebrow{ font-size:10px; letter-spacing:1px; text-transform:uppercase; color:var(--gris); margin-bottom:4px; }
-  .r-notas{ margin-top:18px; font-family:'Helvetica Neue', Arial, sans-serif; font-size: 12px; color: var(--gris); line-height:1.6; }
+  .r-footer-meta .eyebrow{ font-size:10px; letter-spacing:1px; text-transform:uppercase; color:var(--gris); margin-bottom:3px; }
+  .r-notas{ margin-top:10px; font-family:'Helvetica Neue', Arial, sans-serif; font-size: 11.5px; color: var(--gris); line-height:1.5; }
 
   .r-legal{
-    margin-top: 34px; padding-top:16px; border-top: 1px dashed var(--linea);
-    font-family:'Helvetica Neue', Arial, sans-serif; font-size: 10.5px; color: var(--gris);
-    line-height:1.6; font-style: italic;
+    margin-top: 20px; padding-top:12px; border-top: 1px dashed var(--linea);
+    font-family:'Helvetica Neue', Arial, sans-serif; font-size: 10px; color: var(--gris);
+    line-height:1.5; font-style: italic;
   }
 
   .r-signature{
-    display:flex; justify-content:flex-end; margin-top: 40px;
+    display:flex; justify-content:flex-end; margin-top: 22px;
   }
   .r-signature .sig-block{ text-align:center; }
-  .r-signature img{ height: 70px; width:auto; display:block; margin: 0 auto 4px; }
-  .r-signature .sig-line{ border-top: 1px solid var(--negro); padding-top: 6px; min-width:200px; }
-  .r-signature .sig-name{ font-family:'Helvetica Neue', Arial, sans-serif; font-size: 12px; }
-  .r-signature .sig-role{ font-family:'Helvetica Neue', Arial, sans-serif; font-size: 10.5px; color: var(--gris); }
+  .r-signature img{ height: 58px; width:auto; display:block; margin: 0 auto 2px; }
+  .r-signature .sig-line{ border-top: 1px solid var(--negro); padding-top: 5px; min-width:190px; }
+  .r-signature .sig-name{ font-family:'Helvetica Neue', Arial, sans-serif; font-size: 11.5px; }
+  .r-signature .sig-role{ font-family:'Helvetica Neue', Arial, sans-serif; font-size: 10px; color: var(--gris); }
 
   .r-bottom{
-    margin-top: 34px; background: var(--negro); color: var(--blanco);
-    padding: 14px 20px; text-align:center;
-    font-family:'Helvetica Neue', Arial, sans-serif; font-size: 11px; letter-spacing: 0.5px;
+    margin-top: 20px; background: var(--negro); color: var(--blanco);
+    padding: 10px 16px; text-align:center;
+    font-family:'Helvetica Neue', Arial, sans-serif; font-size: 10.5px; letter-spacing: 0.5px;
   }
   .r-bottom b{ color: var(--ambar); }
 </style>
@@ -483,10 +484,10 @@
         <table class="r-items">
           <thead>
             <tr>
-              <th style="width:46%">Concepto</th>
-              <th class="num" style="width:12%">Cant.</th>
-              <th class="num" style="width:20%">Precio</th>
-              <th class="num" style="width:22%">Importe</th>
+              <th style="width:50%">Concepto</th>
+              <th class="num" style="width:10%">Cant.</th>
+              <th class="num" style="width:19%">Precio</th>
+              <th class="num" style="width:21%">Importe</th>
             </tr>
           </thead>
           <tbody id="p-itemsBody"></tbody>
@@ -841,8 +842,24 @@ async function descargarPDF(){
   const nombreArchivo = 'RECIBO' + folio + '.pdf';
   setStatus('wait', 'Generando PDF...');
 
-  const recibo = document.getElementById('recibo');
-  const canvas = await html2canvas(recibo, {scale: 2, useCORS:true, backgroundColor:'#ffffff'});
+  const original = document.getElementById('recibo');
+
+  // Clonamos el recibo fuera de pantalla con ancho fijo de escritorio (800px).
+  // Así el PDF se ve siempre igual, sin importar si se genera desde celular o computadora.
+  const clone = original.cloneNode(true);
+  clone.style.maxWidth = 'none';
+  clone.style.width = '800px';
+  const wrapper = document.createElement('div');
+  wrapper.style.position = 'fixed';
+  wrapper.style.top = '0';
+  wrapper.style.left = '-9999px';
+  wrapper.style.width = '800px';
+  wrapper.appendChild(clone);
+  document.body.appendChild(wrapper);
+
+  const canvas = await html2canvas(clone, {scale: 2, useCORS:true, backgroundColor:'#ffffff', width: 800, windowWidth: 800});
+  document.body.removeChild(wrapper);
+
   const imgData = canvas.toDataURL('image/png');
 
   const { jsPDF } = window.jspdf;
