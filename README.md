@@ -4,7 +4,11 @@ Generador de recibos con vista previa en vivo, exportación a PDF y guardado aut
 
 ## Qué contiene esta carpeta
 
-- `index.html` — el sistema completo (logo, firma y conexión a Google Sheets ya integrados). Es el único archivo que necesitas.
+- `index.html` — genera cotizaciones y recibos en PDF (logo, firma y conexión a Google Sheets ya integrados).
+- `venta.html` — formulario para registrar el perfil completo del cliente cuando una venta ya se concretó.
+- `clientes.html` — panel de historial, alertas de cumpleaños y control de clientes, alimentado por la hoja "Clientes".
+
+Sube los tres archivos juntos a la raíz de tu repositorio — están enlazados entre sí desde sus menús de navegación.
 
 ## Subir a GitHub
 
@@ -37,7 +41,7 @@ git push -u origin main
 - Cada vez que hagas `git push` con cambios, Vercel vuelve a desplegar automáticamente.
 - El folio y el nombre del PDF se generan solos con el formato `AAMMDD.NOMBRECLIENTE`.
 
-## Actualizar tu Apps Script (una sola vez, para que funcione el catálogo)
+## Actualizar tu Apps Script (una sola vez, para que funcione el catálogo y el panel de clientes)
 
 Entra a tu proyecto de Apps Script (script.google.com) y reemplaza TODO el código por este, cambiando `TU_ID_DE_HOJA_AQUI` por el ID de tu hoja:
 
@@ -59,7 +63,21 @@ function doPost(e) {
       .setMimeType(ContentService.MimeType.JSON);
   }
 
-  // Recibo normal (comportamiento original)
+  if (data.tipo === 'cliente') {
+    var hojaClientes = ss.getSheetByName('Clientes');
+    if (!hojaClientes) {
+      hojaClientes = ss.insertSheet('Clientes');
+      hojaClientes.appendRow(['Nombre', 'Telefono', 'Correo', 'Direccion', 'Cumpleanos', 'Canal', 'FechaCompra', 'Productos', 'Total', 'Notas']);
+    }
+    hojaClientes.appendRow([
+      data.nombre, data.telefono, data.correo, data.direccion, data.cumpleanos,
+      data.canal, data.fechaCompra, data.productos, data.total, data.notas
+    ]);
+    return ContentService.createTextOutput(JSON.stringify({status: 'ok'}))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  // Recibo o cotización normal (comportamiento original)
   var hojaRecibos = ss.getSheets()[0];
   hojaRecibos.appendRow([
     data.folio, data.fecha, data.cliente, data.telefono, data.correo,
@@ -71,17 +89,69 @@ function doPost(e) {
 
 function doGet(e) {
   var ss = SpreadsheetApp.openById('TU_ID_DE_HOJA_AQUI');
-  var hoja = ss.getSheetByName('Catálogo');
-  var productos = [];
-  if (hoja) {
+  var tipo = (e.parameter.tipo || 'catalogo');
+
+  if (tipo === 'clientes') {
+    var hojaC = ss.getSheetByName('Clientes');
+    var clientes = [];
+    if (hojaC) {
+      var datosC = hojaC.getDataRange().getValues();
+      for (var k = 1; k < datosC.length; k++) {
+        if (!datosC[k][0]) continue;
+        clientes.push({
+          nombre: datosC[k][0],
+          telefono: datosC[k][1],
+          correo: datosC[k][2],
+          direccion: datosC[k][3],
+          cumpleanos: datosC[k][4],
+          canal: datosC[k][5],
+          fechaCompra: datosC[k][6],
+          productos: datosC[k][7],
+          total: datosC[k][8],
+          notas: datosC[k][9]
+        });
+      }
+    }
+    return ContentService.createTextOutput(JSON.stringify(clientes))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  if (tipo === 'recibos') {
+    var hoja = ss.getSheets()[0];
     var datos = hoja.getDataRange().getValues();
+    var recibos = [];
     for (var i = 1; i < datos.length; i++) {
       if (!datos[i][0]) continue;
+      recibos.push({
+        folio: datos[i][0],
+        fecha: datos[i][1],
+        cliente: datos[i][2],
+        telefono: datos[i][3],
+        correo: datos[i][4],
+        conceptos: datos[i][5],
+        subtotal: datos[i][6],
+        iva: datos[i][7],
+        total: datos[i][8],
+        formaPago: datos[i][9],
+        notas: datos[i][10]
+      });
+    }
+    return ContentService.createTextOutput(JSON.stringify(recibos))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  // catálogo (comportamiento existente)
+  var hoja2 = ss.getSheetByName('Catálogo');
+  var productos = [];
+  if (hoja2) {
+    var datos2 = hoja2.getDataRange().getValues();
+    for (var j = 1; j < datos2.length; j++) {
+      if (!datos2[j][0]) continue;
       productos.push({
-        producto: datos[i][0],
-        etiqueta: datos[i][1],
-        precio: datos[i][2],
-        nota: datos[i][3]
+        producto: datos2[j][0],
+        etiqueta: datos2[j][1],
+        precio: datos2[j][2],
+        nota: datos2[j][3]
       });
     }
   }
@@ -90,5 +160,21 @@ function doGet(e) {
 }
 ```
 
-Guarda (Ctrl+S), luego **Implementar → Administrar implementaciones → ícono de lápiz (editar) → Versión: Nueva versión → Implementar**. Así conservas la misma URL `/exec` que ya tienes integrada — no hace falta cambiar nada en `index.html`.
+Guarda (Ctrl+S), luego **Implementar → Administrar implementaciones → ícono de lápiz (editar) → Versión: Nueva versión → Implementar**. Así conservas la misma URL `/exec` que ya tienes integrada — no hace falta cambiar nada en ninguno de los archivos HTML.
+
+La hoja "Clientes" se crea sola la primera vez que registres una venta desde `venta.html` — no necesitas crearla a mano.
+
+## Registro de venta (`venta.html`)
+
+- Úsalo **solo cuando una cotización se concreta en venta real** — así tu base de clientes no se mezcla con cotizaciones que no se cerraron.
+- Captura perfil completo: nombre, teléfono, correo, dirección, cumpleaños, canal de venta (directa/web/WhatsApp/otro).
+- Los productos se agregan con los mismos chips del catálogo que en `index.html`.
+- Cada envío es una fila nueva en la hoja "Clientes" — si el mismo cliente compra de nuevo, se captura otra vez y el panel de clientes junta automáticamente su historial.
+
+## Panel de clientes (`clientes.html`)
+
+- Agrupa automáticamente todas tus ventas confirmadas por cliente (nombre + teléfono).
+- Muestra perfil completo (teléfono, correo, dirección, cumpleaños, canal habitual), total gastado, número de compras, última compra, e historial detallado.
+- **Alerta de cumpleaños**: si algún cliente cumple años en los próximos 30 días, aparece un aviso destacado arriba — ideal para dar seguimiento postventa.
+- Buscador por nombre + ordenar por mayor gasto / más reciente / más compras / alfabético.
 
