@@ -7,8 +7,9 @@ Generador de recibos con vista previa en vivo, exportación a PDF y guardado aut
 - `index.html` — genera cotizaciones y recibos en PDF (logo, firma y conexión a Google Sheets ya integrados).
 - `venta.html` — formulario para registrar el perfil completo del cliente cuando una venta ya se concretó.
 - `clientes.html` — panel de historial, alertas de cumpleaños y control de clientes, alimentado por la hoja "Clientes".
+- `dashboard.html` — gráfica de ventas mensuales, crecimiento vs. mes anterior, y ranking de productos más vendidos.
 
-Sube los tres archivos juntos a la raíz de tu repositorio — están enlazados entre sí desde sus menús de navegación.
+Sube los cuatro archivos juntos a la raíz de tu repositorio — están enlazados entre sí desde sus menús de navegación.
 
 ## Subir a GitHub
 
@@ -67,11 +68,11 @@ function doPost(e) {
     var hojaClientes = ss.getSheetByName('Clientes');
     if (!hojaClientes) {
       hojaClientes = ss.insertSheet('Clientes');
-      hojaClientes.appendRow(['Nombre', 'Telefono', 'Correo', 'Direccion', 'Cumpleanos', 'Canal', 'FechaCompra', 'Productos', 'Total', 'Notas']);
+      hojaClientes.appendRow(['Nombre', 'Telefono', 'Correo', 'Direccion', 'Cumpleanos', 'Canal', 'FechaCompra', 'Productos', 'Total', 'Notas', 'CuentaDestino']);
     }
     hojaClientes.appendRow([
       data.nombre, data.telefono, data.correo, data.direccion, data.cumpleanos,
-      data.canal, data.fechaCompra, data.productos, data.total, data.notas
+      data.canal, data.fechaCompra, data.productos, data.total, data.notas, data.cuentaDestino
     ]);
     return ContentService.createTextOutput(JSON.stringify({status: 'ok'}))
       .setMimeType(ContentService.MimeType.JSON);
@@ -108,7 +109,8 @@ function doGet(e) {
           fechaCompra: datosC[k][6],
           productos: datosC[k][7],
           total: datosC[k][8],
-          notas: datosC[k][9]
+          notas: datosC[k][9],
+          cuentaDestino: datosC[k][10]
         });
       }
     }
@@ -162,6 +164,8 @@ function doGet(e) {
 
 Guarda (Ctrl+S), luego **Implementar → Administrar implementaciones → ícono de lápiz (editar) → Versión: Nueva versión → Implementar**. Así conservas la misma URL `/exec` que ya tienes integrada — no hace falta cambiar nada en ninguno de los archivos HTML.
 
+**Importante:** si tu hoja "Clientes" ya existe (ya la usaste antes), el encabezado de la columna K no se va a poner solo — agrégalo tú a mano: abre tu Sheets, ve a la hoja "Clientes", y escribe `CuentaDestino` en la celda K1. Las ventas nuevas van a caer ahí correctamente.
+
 La hoja "Clientes" se crea sola la primera vez que registres una venta desde `venta.html` — no necesitas crearla a mano.
 
 ## Registro de venta (`venta.html`)
@@ -174,7 +178,15 @@ La hoja "Clientes" se crea sola la primera vez que registres una venta desde `ve
 ## Panel de clientes (`clientes.html`)
 
 - Agrupa automáticamente todas tus ventas confirmadas por cliente (nombre + teléfono).
-- Muestra perfil completo (teléfono, correo, dirección, cumpleaños, canal habitual), total gastado, número de compras, última compra, e historial detallado.
+- Muestra perfil completo (teléfono, correo, dirección, cumpleaños, canal habitual), total gastado, número de compras, última compra, e historial detallado con lista clara de productos y fecha de cada compra.
 - **Alerta de cumpleaños**: si algún cliente cumple años en los próximos 30 días, aparece un aviso destacado arriba — ideal para dar seguimiento postventa.
 - Buscador por nombre + ordenar por mayor gasto / más reciente / más compras / alfabético.
+
+## Dashboard de ventas (`dashboard.html`)
+
+- Lee las ventas confirmadas de tu hoja "Clientes" (no las cotizaciones) y las agrupa por mes.
+- Gráfica de barras por mes, con botón para cambiar a vista "Acumulado" (línea de crecimiento total).
+- Tarjetas arriba: ventas totales, compras registradas, ventas del mes actual, y % de crecimiento vs. el mes anterior.
+- Tabla de los productos más vendidos (contando cuántas veces aparece cada uno en tus ventas).
+- No necesita configuración — usa la misma URL de Google Sheets ya integrada, y el mismo `doGet` que ya tienes.
 

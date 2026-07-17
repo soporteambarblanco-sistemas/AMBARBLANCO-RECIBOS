@@ -113,11 +113,16 @@
   }
   .historial-fecha{ font-size:12px; color:var(--gris); }
   .historial-total{ font-size:16px; font-weight:700; color: var(--maroon); }
-  .historial-conceptos{ font-family:'Helvetica Neue', Arial, sans-serif; font-size:12.5px; color: var(--negro); line-height:1.5; }
+  .historial-conceptos{ font-family:'Helvetica Neue', Arial, sans-serif; font-size:12.5px; color: var(--negro); line-height:1.6; }
+  .historial-conceptos .item-linea{ display:block; padding:2px 0; }
+  .historial-conceptos .item-linea::before{ content:'· '; color: var(--maroon); font-weight:700; }
+  .historial-fecha-grande{
+    font-family:'Helvetica Neue', Arial, sans-serif; font-size:13px; font-weight:700; color:var(--negro);
+  }
   .historial-tag{
     display:inline-block; font-family:'Helvetica Neue', Arial, sans-serif; font-size:9.5px;
     letter-spacing:0.5px; text-transform:uppercase; padding:2px 8px; border-radius:10px;
-    background: var(--marfil); color: var(--gris); margin-top:6px;
+    background: var(--marfil); color: var(--gris); margin-top:6px; margin-right:6px;
   }
 
   #vistaLista.oculto, #vistaDetalle.oculto{ display:none; }
@@ -293,11 +298,17 @@ function renderLista(){
   cont.innerHTML = lista.map((c) => {
     const idx = CLIENTES.indexOf(c);
     const ultima = c.ultimaFecha ? new Date(c.ultimaFecha).toLocaleDateString('es-MX', {day:'numeric', month:'short', year:'numeric'}) : '—';
+    const compraReciente = [...c.compras].sort((a,b) => parseFechaOrden(b.fechaCompra) - parseFechaOrden(a.fechaCompra))[0];
+    let ultimoProducto = '';
+    if(compraReciente && compraReciente.productos){
+      ultimoProducto = compraReciente.productos.split('|')[0].trim();
+    }
     return `
       <div class="cliente-card" onclick="verDetalle(${idx})">
         <div class="cliente-info">
           <div class="nombre">${c.nombre}</div>
           <div class="sub">${c.telefono || 'Sin teléfono'}${c.correo ? ' · ' + c.correo : ''}</div>
+          ${ultimoProducto ? `<div class="sub" style="color:var(--maroon); margin-top:3px;">Última compra: ${ultimoProducto}</div>` : ''}
         </div>
         <div class="cliente-badge">
           <div class="gasto">${money(c.totalGastado)}</div>
@@ -332,17 +343,25 @@ function verDetalle(idx){
   `;
 
   const compras = [...c.compras].sort((a,b) => parseFechaOrden(b.fechaCompra) - parseFechaOrden(a.fechaCompra));
-  document.getElementById('detalleHistorial').innerHTML = compras.map(f => `
+  document.getElementById('detalleHistorial').innerHTML = compras.map(f => {
+    const fechaTxt = f.fechaCompra ? new Date(f.fechaCompra).toLocaleDateString('es-MX', {day:'numeric', month:'long', year:'numeric'}) : 'Sin fecha';
+    const items = (f.productos || '').split('|').map(p => p.trim()).filter(Boolean);
+    const itemsHtml = items.length
+      ? items.map(p => `<span class="item-linea">${p}</span>`).join('')
+      : '<span class="item-linea">Sin detalle de productos</span>';
+    return `
     <div class="historial-item">
       <div class="historial-top">
-        <div class="historial-fecha">${f.fechaCompra || ''}</div>
+        <div class="historial-fecha-grande">${fechaTxt}</div>
         <div class="historial-total">${money(f.total)}</div>
       </div>
-      <div class="historial-conceptos">${f.productos || '—'}</div>
+      <div class="historial-conceptos">${itemsHtml}</div>
       <span class="historial-tag">${f.canal || 'Sin canal'}</span>
+      <span class="historial-tag" style="background:#EFE6D8; color:var(--maroon-dark);">💰 ${f.cuentaDestino || 'Sin especificar'}</span>
       ${f.notas ? `<div style="font-family:'Helvetica Neue', Arial, sans-serif; font-size:11.5px; color:var(--gris); margin-top:6px;">${f.notas}</div>` : ''}
     </div>
-  `).join('');
+  `;
+  }).join('');
 }
 
 function mostrarLista(){
