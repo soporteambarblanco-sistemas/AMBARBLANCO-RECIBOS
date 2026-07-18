@@ -699,16 +699,15 @@ async function guardarVenta(){
 
   setStatus('wait', 'Guardando...');
   try{
-    const resp = await fetch(SHEETS_URL, {
+    await fetch(SHEETS_URL, {
       method: 'POST',
+      mode: 'no-cors',
       headers: {'Content-Type': 'text/plain'},
       body: JSON.stringify(payload)
     });
-    let link = null;
-    try{ const data = await resp.json(); link = data && data.link; }catch(e){}
 
     setStatus('ok', generaRecibo
-      ? 'Venta guardada y PDF subido a Drive' + (link ? ' ✓' : ' (verifica tu hoja).')
+      ? 'Venta guardada. Revisa tu hoja de Clientes y tu carpeta de Drive en unos segundos.'
       : 'Venta registrada correctamente (sin recibo).');
 
     // Limpiar formulario para la siguiente captura, conservando fecha de hoy

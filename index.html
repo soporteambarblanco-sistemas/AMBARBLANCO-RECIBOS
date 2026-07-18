@@ -945,17 +945,13 @@ async function descargarPDF(){
         nombreArchivo: nombreArchivo,
         pdfBase64: pdfBase64
       });
-      const resp = await fetch(url, {
+      await fetch(url, {
         method: 'POST',
+        mode: 'no-cors',
         headers: {'Content-Type': 'text/plain'},
         body: JSON.stringify(payload)
       });
-      const data = await resp.json();
-      if(data && data.link){
-        setStatus('ok', 'PDF descargado y guardado en Drive/Sheets (folio ' + folio + ').');
-      } else {
-        setStatus('ok', 'PDF descargado: ' + nombreArchivo + ' (no se confirmó la subida a Drive).');
-      }
+      setStatus('ok', 'PDF descargado y copia enviada a Drive/Sheets (folio ' + folio + '). Verifica en unos segundos.');
     }catch(err){
       setStatus('ok', 'PDF descargado: ' + nombreArchivo + ' (no se pudo subir copia a Drive, revisa tu conexión).');
     }
