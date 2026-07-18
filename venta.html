@@ -473,18 +473,24 @@ function agregarDesdeCatalogo(producto, etiqueta, precio, nota){
     filaVacia.querySelector('.i-desc').value = descripcion;
     filaVacia.querySelector('.i-cant').value = 1;
     filaVacia.querySelector('.i-precio').value = precio;
+    filaVacia.dataset.producto = producto;
+    filaVacia.dataset.aroma = aromaSeleccionado || '';
+    filaVacia.dataset.presentacion = etiqueta;
   } else {
-    agregarItem(descripcion, 1, precio);
+    agregarItem(descripcion, 1, precio, producto, aromaSeleccionado, etiqueta);
   }
   actualizarTotal();
 }
 
 let itemCounter = 0;
-function crearItemRow(desc, cant, precio){
+function crearItemRow(desc, cant, precio, producto, aroma, presentacion){
   itemCounter++;
   const id = 'item_' + itemCounter;
   const tr = document.createElement('tr');
   tr.id = id;
+  tr.dataset.producto = producto || '';
+  tr.dataset.aroma = aroma || '';
+  tr.dataset.presentacion = presentacion || '';
   tr.innerHTML = `
     <td><input type="text" class="i-desc" placeholder="Ej. Difusor Holbox 250ml" value="${desc||''}" oninput="actualizarTotal()"></td>
     <td><input type="number" class="i-cant qty-price" value="${cant!=null?cant:1}" min="0" step="1" oninput="actualizarTotal()"></td>
@@ -494,7 +500,7 @@ function crearItemRow(desc, cant, precio){
   `;
   return tr;
 }
-function agregarItem(desc, cant, precio){ document.getElementById('itemsBody').appendChild(crearItemRow(desc, cant, precio)); actualizarTotal(); }
+function agregarItem(desc, cant, precio, producto, aroma, presentacion){ document.getElementById('itemsBody').appendChild(crearItemRow(desc, cant, precio, producto, aroma, presentacion)); actualizarTotal(); }
 function eliminarItem(id){ const el = document.getElementById(id); if(el) el.remove(); actualizarTotal(); }
 
 function money(n){ return '$' + (Math.round(n*100)/100).toLocaleString('es-MX', {minimumFractionDigits:2, maximumFractionDigits:2}); }
@@ -649,11 +655,23 @@ async function guardarVenta(){
 
   const rows = document.querySelectorAll('#itemsBody tr');
   let productos = [];
+  let itemsDetalle = [];
   rows.forEach(row => {
     const desc = row.querySelector('.i-desc').value || '';
     const cant = parseFloat(row.querySelector('.i-cant').value) || 0;
     const precio = parseFloat(row.querySelector('.i-precio').value) || 0;
-    if(desc || cant || precio) productos.push(`${desc} (x${cant} @ $${precio})`);
+    if(desc || cant || precio){
+      productos.push(`${desc} (x${cant} @ $${precio})`);
+      itemsDetalle.push({
+        producto: row.dataset.producto || '',
+        aroma: row.dataset.aroma || '',
+        presentacion: row.dataset.presentacion || '',
+        descripcion: desc,
+        cantidad: cant,
+        precio: precio,
+        importe: cant * precio
+      });
+    }
   });
   if(productos.length === 0){
     setStatus('err', 'Agrega al menos un producto.');
@@ -666,8 +684,11 @@ async function guardarVenta(){
     ? (document.getElementById('cuentaDestinoOtro').value.trim() || 'Otro')
     : cuentaSelect;
 
+  const ventaId = 'V' + Date.now().toString(36).toUpperCase();
+
   const payload = {
     tipo: 'cliente',
+    ventaId: ventaId,
     nombre: nombre || 'Venta sin registrar cliente',
     telefono: generaRecibo ? document.getElementById('telefono').value.trim() : '',
     correo: generaRecibo ? document.getElementById('correo').value.trim() : '',
@@ -677,6 +698,7 @@ async function guardarVenta(){
     fechaCompra: document.getElementById('fechaCompra').value,
     cuentaDestino: cuentaFinal,
     productos: productos.join(' | '),
+    itemsDetalle: itemsDetalle,
     total: total.toFixed(2),
     notas: document.getElementById('notas').value.trim(),
     llevaRecibo: generaRecibo ? 'Sí' : 'No'

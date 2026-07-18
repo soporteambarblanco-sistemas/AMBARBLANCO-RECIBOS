@@ -42,9 +42,11 @@ git push -u origin main
 - Cada vez que hagas `git push` con cambios, Vercel vuelve a desplegar automáticamente.
 - El folio y el nombre del PDF se generan solos con el formato `AAMMDD.NOMBRECLIENTE`.
 
-## Actualizar tu Apps Script (una sola vez más — versión definitiva)
+## Actualizar tu Apps Script (con detalle de productos por venta)
 
-Entra a tu proyecto de Apps Script (script.google.com), selecciona todo, borra, y pega este código completo:
+Esta versión agrega una hoja nueva "DetalleVentas" — cada producto de cada venta cae ahí como su propia fila (aroma, tipo de producto, presentación, cantidad, precio), aunque hayas registrado 8 productos distintos en una sola venta de bazar. Así puedes desglosar sin perder la eficiencia de un solo registro.
+
+Entra a script.google.com, selecciona todo el código, borra, y pega este completo:
 
 ```javascript
 function doPost(e) {
@@ -68,34 +70,70 @@ function doPost(e) {
     var hojaClientes = ss.getSheetByName('Clientes');
     if (!hojaClientes) {
       hojaClientes = ss.insertSheet('Clientes');
-      hojaClientes.appendRow(['Nombre', 'Telefono', 'Correo', 'Direccion', 'Cumpleanos', 'Canal', 'FechaCompra', 'Productos', 'Total', 'Notas', 'CuentaDestino', 'LlevaRecibo', 'LinkPDF']);
+      hojaClientes.appendRow(['Nombre', 'Telefono', 'Correo', 'Direccion', 'Cumpleanos', 'Canal', 'FechaCompra', 'Productos', 'Total', 'Notas', 'CuentaDestino', 'LlevaRecibo', 'LinkPDF', 'VentaID']);
     }
-    var linkPDF = '';
-    if (data.pdfBase64) {
-      var folder = getOrCreateFolder_('Recibos Ambar Blanco');
-      var nombreArchivo = data.nombreArchivo || (data.nombre + '.pdf');
-      var blob = Utilities.newBlob(Utilities.base64Decode(data.pdfBase64), 'application/pdf', nombreArchivo);
-      var file = folder.createFile(blob);
-      file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-      linkPDF = file.getUrl();
-    }
+
+    var ventaId = data.ventaId || ('V' + new Date().getTime());
+
+    // PRIMERO se guarda la venta en la hoja principal, sin importar lo que pase después
     hojaClientes.appendRow([
       data.nombre, data.telefono, data.correo, data.direccion, data.cumpleanos,
       data.canal, data.fechaCompra, data.productos, data.total, data.notas, data.cuentaDestino,
-      data.llevaRecibo || '', linkPDF
+      data.llevaRecibo || '', '', ventaId
     ]);
-    return ContentService.createTextOutput(JSON.stringify({status: 'ok', link: linkPDF}))
+    var filaNueva = hojaClientes.getLastRow();
+
+    // Detalle por producto, en su propia hoja (no puede tumbar el guardado principal)
+    if (data.itemsDetalle && data.itemsDetalle.length) {
+      try {
+        var hojaDetalle = ss.getSheetByName('DetalleVentas');
+        if (!hojaDetalle) {
+          hojaDetalle = ss.insertSheet('DetalleVentas');
+          hojaDetalle.appendRow(['VentaID', 'Fecha', 'Cliente', 'Producto', 'Aroma', 'Presentacion', 'Cantidad', 'PrecioUnitario', 'Importe', 'Canal', 'CuentaDestino']);
+        }
+        data.itemsDetalle.forEach(function(it) {
+          hojaDetalle.appendRow([
+            ventaId, data.fechaCompra, data.nombre, it.producto, it.aroma, it.presentacion,
+            it.cantidad, it.precio, it.importe, data.canal, data.cuentaDestino
+          ]);
+        });
+      } catch (err) {
+        // El registro principal ya quedó guardado aunque esto falle
+      }
+    }
+
+    // Por último, intenta subir el PDF a Drive (tampoco puede tumbar lo ya guardado)
+    if (data.pdfBase64) {
+      try {
+        var folder = getOrCreateFolder_('Recibos Ambar Blanco');
+        var nombreArchivo = data.nombreArchivo || (data.nombre + '.pdf');
+        var blob = Utilities.newBlob(Utilities.base64Decode(data.pdfBase64), 'application/pdf', nombreArchivo);
+        var file = folder.createFile(blob);
+        file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+        hojaClientes.getRange(filaNueva, 13).setValue(file.getUrl());
+      } catch (err) {
+        hojaClientes.getRange(filaNueva, 13).setValue('ERROR AL SUBIR: ' + err.message);
+      }
+    }
+
+    return ContentService.createTextOutput(JSON.stringify({status: 'ok'}))
       .setMimeType(ContentService.MimeType.JSON);
   }
 
   if (data.tipo === 'guardarPDF') {
-    var folder2 = getOrCreateFolder_('Recibos Ambar Blanco');
-    var blob2 = Utilities.newBlob(Utilities.base64Decode(data.pdfBase64), 'application/pdf', data.nombreArchivo);
-    var file2 = folder2.createFile(blob2);
-    file2.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-    var link2 = file2.getUrl();
+    guardarOActualizarRecibo_(ss, data, null);
 
-    guardarOActualizarRecibo_(ss, data, link2);
+    var link2 = '';
+    try {
+      var folder2 = getOrCreateFolder_('Recibos Ambar Blanco');
+      var blob2 = Utilities.newBlob(Utilities.base64Decode(data.pdfBase64), 'application/pdf', data.nombreArchivo);
+      var file2 = folder2.createFile(blob2);
+      file2.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      link2 = file2.getUrl();
+      guardarOActualizarRecibo_(ss, data, link2);
+    } catch (err) {
+      // El recibo ya quedó guardado arriba aunque Drive falle
+    }
 
     return ContentService.createTextOutput(JSON.stringify({status: 'ok', link: link2}))
       .setMimeType(ContentService.MimeType.JSON);
@@ -134,6 +172,10 @@ function getOrCreateFolder_(nombre) {
   return DriveApp.createFolder(nombre);
 }
 
+function autorizarDrive() {
+  DriveApp.getRootFolder();
+}
+
 function doGet(e) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var tipo = (e.parameter.tipo || 'catalogo');
@@ -158,11 +200,38 @@ function doGet(e) {
           notas: datosC[k][9],
           cuentaDestino: datosC[k][10],
           llevaRecibo: datosC[k][11],
-          linkPDF: datosC[k][12]
+          linkPDF: datosC[k][12],
+          ventaId: datosC[k][13]
         });
       }
     }
     return ContentService.createTextOutput(JSON.stringify(clientes))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  if (tipo === 'detalle') {
+    var hojaD = ss.getSheetByName('DetalleVentas');
+    var detalle = [];
+    if (hojaD) {
+      var datosD = hojaD.getDataRange().getValues();
+      for (var m = 1; m < datosD.length; m++) {
+        if (!datosD[m][0]) continue;
+        detalle.push({
+          ventaId: datosD[m][0],
+          fecha: datosD[m][1],
+          cliente: datosD[m][2],
+          producto: datosD[m][3],
+          aroma: datosD[m][4],
+          presentacion: datosD[m][5],
+          cantidad: datosD[m][6],
+          precio: datosD[m][7],
+          importe: datosD[m][8],
+          canal: datosD[m][9],
+          cuentaDestino: datosD[m][10]
+        });
+      }
+    }
+    return ContentService.createTextOutput(JSON.stringify(detalle))
       .setMimeType(ContentService.MimeType.JSON);
   }
 
@@ -212,7 +281,9 @@ function doGet(e) {
 
 Guarda (Ctrl+S), luego **Implementar → Administrar implementaciones → lápiz ✏️ → Versión: Nueva versión → Implementar**.
 
-**Columnas nuevas a mano (si tu hoja "Clientes" ya existe):** en la celda **L1** escribe `LlevaRecibo` y en **M1** escribe `LinkPDF`.
+Ya incluí la función `autorizarDrive` dentro de este mismo código, así que si aún no habías corrido esa autorización, hazlo ahora: selecciona `autorizarDrive` en el menú de funciones (junto al botón Run) y dale clic a Run antes de implementar.
+
+**Columna nueva a mano:** en tu hoja "Clientes", escribe `VentaID` en la celda **N1**.
 
 ## Registro de venta (`venta.html`)
 

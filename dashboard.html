@@ -101,6 +101,7 @@
 const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbxc8uIwQiBsGt348bI0czEmT8KjRJfLq8trpgYURkN_dva1Q0CbQRmWVns2AcAgWbAD5Q/exec';
 
 let VENTAS = [];
+let DETALLE = [];
 let chartInstance = null;
 let modoAcumulado = false;
 
@@ -123,9 +124,13 @@ function nombreMes(clave){
 
 async function cargar(){
   try{
-    const resp = await fetch(SHEETS_URL + '?tipo=clientes', { method: 'GET' });
-    const filas = await resp.json();
+    const [respVentas, respDetalle] = await Promise.all([
+      fetch(SHEETS_URL + '?tipo=clientes', { method: 'GET' }),
+      fetch(SHEETS_URL + '?tipo=detalle', { method: 'GET' })
+    ]);
+    const filas = await respVentas.json();
     VENTAS = filas.filter(f => f.fechaCompra && f.total);
+    try{ DETALLE = await respDetalle.json(); }catch(e){ DETALLE = []; }
     render();
   }catch(err){
     document.getElementById('contenido').innerHTML = '<div class="estado">No se pudo cargar la información. Revisa tu conexión o la URL de Google Sheets en el código.</div>';
@@ -146,17 +151,17 @@ function agruparPorMes(){
   return { claves, grupos };
 }
 
-function agruparPorProducto(){
+function agruparPorCampo(campo, top){
   const grupos = {};
-  VENTAS.forEach(f => {
-    (f.productos || '').split('|').forEach(p => {
-      const nombre = p.trim().replace(/\s*\(x.*\)\s*$/, '');
-      if(!nombre) return;
-      if(!grupos[nombre]) grupos[nombre] = { veces: 0 };
-      grupos[nombre].veces += 1;
-    });
+  DETALLE.forEach(d => {
+    const valor = (d[campo] || '').toString().trim();
+    if(!valor) return;
+    if(!grupos[valor]) grupos[valor] = { veces: 0, unidades: 0, importe: 0 };
+    grupos[valor].veces += 1;
+    grupos[valor].unidades += Number(d.cantidad) || 0;
+    grupos[valor].importe += Number(d.importe) || 0;
   });
-  return Object.entries(grupos).sort((a,b) => b[1].veces - a[1].veces).slice(0, 8);
+  return Object.entries(grupos).sort((a,b) => b[1].unidades - a[1].unidades).slice(0, top || 8);
 }
 
 function agruparPorCuenta(){
@@ -210,10 +215,26 @@ function render(){
     </div>
 
     <div class="panel">
-      <h2>Productos más vendidos</h2>
+      <h2>Tipo de producto más vendido</h2>
       <table class="tabla-ranking">
-        <thead><tr><th>Producto</th><th class="num">Veces vendido</th></tr></thead>
-        <tbody id="tablaProductos"></tbody>
+        <thead><tr><th>Producto</th><th class="num">Unidades</th><th class="num">Ingresos</th></tr></thead>
+        <tbody id="tablaTipoProducto"></tbody>
+      </table>
+    </div>
+
+    <div class="panel">
+      <h2>Aromas más vendidos</h2>
+      <table class="tabla-ranking">
+        <thead><tr><th>Aroma</th><th class="num">Unidades</th><th class="num">Ingresos</th></tr></thead>
+        <tbody id="tablaAromas"></tbody>
+      </table>
+    </div>
+
+    <div class="panel">
+      <h2>Presentaciones más vendidas</h2>
+      <table class="tabla-ranking">
+        <thead><tr><th>Presentación</th><th class="num">Unidades</th><th class="num">Ingresos</th></tr></thead>
+        <tbody id="tablaPresentaciones"></tbody>
       </table>
     </div>
 
@@ -227,7 +248,7 @@ function render(){
   `;
 
   dibujarGrafica(claves, grupos);
-  renderProductos();
+  renderRankings();
   renderCuentas();
 }
 
@@ -290,11 +311,16 @@ function dibujarGrafica(claves, grupos){
   });
 }
 
-function renderProductos(){
-  const top = agruparPorProducto();
-  document.getElementById('tablaProductos').innerHTML = top.map(([nombre, info]) => `
-    <tr><td>${nombre}</td><td class="num">${info.veces}</td></tr>
-  `).join('') || '<tr><td colspan="2">Sin datos suficientes todavía</td></tr>';
+function pintarTablaRanking(idTabla, lista){
+  document.getElementById(idTabla).innerHTML = lista.map(([nombre, info]) => `
+    <tr><td>${nombre}</td><td class="num">${info.unidades}</td><td class="num">${money(info.importe)}</td></tr>
+  `).join('') || '<tr><td colspan="3">Sin datos suficientes todavía</td></tr>';
+}
+
+function renderRankings(){
+  pintarTablaRanking('tablaTipoProducto', agruparPorCampo('producto', 8));
+  pintarTablaRanking('tablaAromas', agruparPorCampo('aroma', 8));
+  pintarTablaRanking('tablaPresentaciones', agruparPorCampo('presentacion', 8));
 }
 
 function renderCuentas(){
