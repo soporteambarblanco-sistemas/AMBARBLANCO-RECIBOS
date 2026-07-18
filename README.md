@@ -42,9 +42,9 @@ git push -u origin main
 - Cada vez que hagas `git push` con cambios, Vercel vuelve a desplegar automáticamente.
 - El folio y el nombre del PDF se generan solos con el formato `AAMMDD.NOMBRECLIENTE`.
 
-## Actualizar tu Apps Script (una sola vez, para que funcione todo: catálogo, clientes y PDFs en Drive)
+## Actualizar tu Apps Script (una sola vez más — versión definitiva)
 
-Entra a tu proyecto de Apps Script (script.google.com) y reemplaza TODO el código por este:
+Entra a tu proyecto de Apps Script (script.google.com), selecciona todo, borra, y pega este código completo:
 
 ```javascript
 function doPost(e) {
@@ -68,37 +68,44 @@ function doPost(e) {
     var hojaClientes = ss.getSheetByName('Clientes');
     if (!hojaClientes) {
       hojaClientes = ss.insertSheet('Clientes');
-      hojaClientes.appendRow(['Nombre', 'Telefono', 'Correo', 'Direccion', 'Cumpleanos', 'Canal', 'FechaCompra', 'Productos', 'Total', 'Notas', 'CuentaDestino']);
+      hojaClientes.appendRow(['Nombre', 'Telefono', 'Correo', 'Direccion', 'Cumpleanos', 'Canal', 'FechaCompra', 'Productos', 'Total', 'Notas', 'CuentaDestino', 'LlevaRecibo', 'LinkPDF']);
+    }
+    var linkPDF = '';
+    if (data.pdfBase64) {
+      var folder = getOrCreateFolder_('Recibos Ambar Blanco');
+      var nombreArchivo = data.nombreArchivo || (data.nombre + '.pdf');
+      var blob = Utilities.newBlob(Utilities.base64Decode(data.pdfBase64), 'application/pdf', nombreArchivo);
+      var file = folder.createFile(blob);
+      file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      linkPDF = file.getUrl();
     }
     hojaClientes.appendRow([
       data.nombre, data.telefono, data.correo, data.direccion, data.cumpleanos,
-      data.canal, data.fechaCompra, data.productos, data.total, data.notas, data.cuentaDestino
+      data.canal, data.fechaCompra, data.productos, data.total, data.notas, data.cuentaDestino,
+      data.llevaRecibo || '', linkPDF
     ]);
-    return ContentService.createTextOutput(JSON.stringify({status: 'ok'}))
+    return ContentService.createTextOutput(JSON.stringify({status: 'ok', link: linkPDF}))
       .setMimeType(ContentService.MimeType.JSON);
   }
 
   if (data.tipo === 'guardarPDF') {
-    var folder = getOrCreateFolder_('Recibos Ambar Blanco');
-    var blob = Utilities.newBlob(Utilities.base64Decode(data.pdfBase64), 'application/pdf', data.nombreArchivo);
-    var file = folder.createFile(blob);
-    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-    var link = file.getUrl();
+    var folder2 = getOrCreateFolder_('Recibos Ambar Blanco');
+    var blob2 = Utilities.newBlob(Utilities.base64Decode(data.pdfBase64), 'application/pdf', data.nombreArchivo);
+    var file2 = folder2.createFile(blob2);
+    file2.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    var link2 = file2.getUrl();
 
-    guardarOActualizarRecibo_(ss, data, link);
+    guardarOActualizarRecibo_(ss, data, link2);
 
-    return ContentService.createTextOutput(JSON.stringify({status: 'ok', link: link}))
+    return ContentService.createTextOutput(JSON.stringify({status: 'ok', link: link2}))
       .setMimeType(ContentService.MimeType.JSON);
   }
 
-  // Recibo o cotización normal (comportamiento original)
   guardarOActualizarRecibo_(ss, data, null);
   return ContentService.createTextOutput(JSON.stringify({status: 'ok'}))
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-// Busca una fila existente por folio y la actualiza; si no existe, agrega una nueva.
-// Así no se duplican filas sin importar si usas "Guardar en Sheets" o "Descargar PDF" primero.
 function guardarOActualizarRecibo_(ss, data, link) {
   var hoja = ss.getSheets()[0];
   var datos = hoja.getDataRange().getValues();
@@ -149,7 +156,9 @@ function doGet(e) {
           productos: datosC[k][7],
           total: datosC[k][8],
           notas: datosC[k][9],
-          cuentaDestino: datosC[k][10]
+          cuentaDestino: datosC[k][10],
+          llevaRecibo: datosC[k][11],
+          linkPDF: datosC[k][12]
         });
       }
     }
@@ -182,7 +191,6 @@ function doGet(e) {
       .setMimeType(ContentService.MimeType.JSON);
   }
 
-  // catálogo (comportamiento existente)
   var hoja2 = ss.getSheetByName('Catálogo');
   var productos = [];
   if (hoja2) {
@@ -202,17 +210,9 @@ function doGet(e) {
 }
 ```
 
-Guarda (Ctrl+S), luego **Implementar → Administrar implementaciones → ícono de lápiz (editar) → Versión: Nueva versión → Implementar**. Así conservas la misma URL `/exec` que ya tienes integrada — no hace falta cambiar nada en ninguno de los archivos HTML.
+Guarda (Ctrl+S), luego **Implementar → Administrar implementaciones → lápiz ✏️ → Versión: Nueva versión → Implementar**.
 
-**Importante — permisos nuevos:** esta versión usa Google Drive por primera vez (para guardar los PDFs), así que al implementar te va a pedir autorizar un permiso nuevo ("Ver, editar, crear y eliminar tus archivos de Google Drive"). Es normal, acepta con tu cuenta — solo va a tocar la carpeta "Recibos Ambar Blanco" que el script crea solo.
-
-**Importante — columna del link:** en tu hoja de Recibos (la primera pestaña), agrega a mano el encabezado `LinkPDF` en la celda **L1** si esa columna todavía no existe.
-
-**Importante — columna de cuenta destino:** en tu hoja "Clientes", agrega a mano el encabezado `CuentaDestino` en la celda **K1** si esa columna todavía no existe.
-
-**Sobre el problema de "no se refleja":** si ya habías intentado esto antes y no se guardaba, casi seguro fue porque faltó el paso de "Nueva versión" al implementar — guardar el código (Ctrl+S) y desplegarlo son dos pasos distintos. Con este código y siguiendo el paso de implementación completo, debe quedar resuelto.
-
-La hoja "Clientes" se crea sola la primera vez que registres una venta desde `venta.html` — no necesitas crearla a mano.
+**Columnas nuevas a mano (si tu hoja "Clientes" ya existe):** en la celda **L1** escribe `LlevaRecibo` y en **M1** escribe `LinkPDF`.
 
 ## Registro de venta (`venta.html`)
 

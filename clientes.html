@@ -358,6 +358,7 @@ function verDetalle(idx){
       <div class="historial-conceptos">${itemsHtml}</div>
       <span class="historial-tag">${f.canal || 'Sin canal'}</span>
       <span class="historial-tag" style="background:#EFE6D8; color:var(--maroon-dark);">💰 ${f.cuentaDestino || 'Sin especificar'}</span>
+      ${f.linkPDF ? `<a href="${f.linkPDF}" target="_blank" class="historial-tag" style="background:var(--negro); color:var(--blanco); text-decoration:none;">📄 Ver recibo PDF</a>` : ''}
       ${f.notas ? `<div style="font-family:'Helvetica Neue', Arial, sans-serif; font-size:11.5px; color:var(--gris); margin-top:6px;">${f.notas}</div>` : ''}
     </div>
   `;
