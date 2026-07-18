@@ -4,7 +4,7 @@ Generador de recibos con vista previa en vivo, exportación a PDF y guardado aut
 
 ## Qué contiene esta carpeta
 
-- `index.html` — genera cotizaciones y recibos en PDF (logo, firma y conexión a Google Sheets ya integrados).
+- `index.html` — genera cotizaciones y recibos en PDF (logo, firma y conexión a Google Sheets ya integrados). Cada PDF que descargues también se sube automáticamente a una carpeta de Google Drive, y el link queda guardado en la columna L de tu hoja de Recibos.
 - `venta.html` — formulario para registrar el perfil completo del cliente cuando una venta ya se concretó.
 - `clientes.html` — panel de historial, alertas de cumpleaños y control de clientes, alimentado por la hoja "Clientes".
 - `dashboard.html` — gráfica de ventas mensuales, crecimiento vs. mes anterior, y ranking de productos más vendidos.
@@ -42,13 +42,13 @@ git push -u origin main
 - Cada vez que hagas `git push` con cambios, Vercel vuelve a desplegar automáticamente.
 - El folio y el nombre del PDF se generan solos con el formato `AAMMDD.NOMBRECLIENTE`.
 
-## Actualizar tu Apps Script (una sola vez, para que funcione el catálogo y el panel de clientes)
+## Actualizar tu Apps Script (una sola vez, para que funcione todo: catálogo, clientes y PDFs en Drive)
 
-Entra a tu proyecto de Apps Script (script.google.com) y reemplaza TODO el código por este, cambiando `TU_ID_DE_HOJA_AQUI` por el ID de tu hoja:
+Entra a tu proyecto de Apps Script (script.google.com) y reemplaza TODO el código por este:
 
 ```javascript
 function doPost(e) {
-  var ss = SpreadsheetApp.openById('TU_ID_DE_HOJA_AQUI');
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
   var data = JSON.parse(e.postData.contents);
 
   if (data.tipo === 'producto') {
@@ -78,18 +78,57 @@ function doPost(e) {
       .setMimeType(ContentService.MimeType.JSON);
   }
 
+  if (data.tipo === 'guardarPDF') {
+    var folder = getOrCreateFolder_('Recibos Ambar Blanco');
+    var blob = Utilities.newBlob(Utilities.base64Decode(data.pdfBase64), 'application/pdf', data.nombreArchivo);
+    var file = folder.createFile(blob);
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    var link = file.getUrl();
+
+    guardarOActualizarRecibo_(ss, data, link);
+
+    return ContentService.createTextOutput(JSON.stringify({status: 'ok', link: link}))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
   // Recibo o cotización normal (comportamiento original)
-  var hojaRecibos = ss.getSheets()[0];
-  hojaRecibos.appendRow([
-    data.folio, data.fecha, data.cliente, data.telefono, data.correo,
-    data.conceptos, data.subtotal, data.iva, data.total, data.formaPago, data.notas
-  ]);
+  guardarOActualizarRecibo_(ss, data, null);
   return ContentService.createTextOutput(JSON.stringify({status: 'ok'}))
     .setMimeType(ContentService.MimeType.JSON);
 }
 
+// Busca una fila existente por folio y la actualiza; si no existe, agrega una nueva.
+// Así no se duplican filas sin importar si usas "Guardar en Sheets" o "Descargar PDF" primero.
+function guardarOActualizarRecibo_(ss, data, link) {
+  var hoja = ss.getSheets()[0];
+  var datos = hoja.getDataRange().getValues();
+  var filaEncontrada = -1;
+  for (var r = 1; r < datos.length; r++) {
+    if (datos[r][0] === data.folio) { filaEncontrada = r; break; }
+  }
+
+  var fila = [
+    data.folio, data.fecha, data.cliente, data.telefono, data.correo,
+    data.conceptos, data.subtotal, data.iva, data.total, data.formaPago, data.notas,
+    link || ''
+  ];
+
+  if (filaEncontrada > -1) {
+    if (!link) fila[11] = hoja.getRange(filaEncontrada + 1, 12).getValue();
+    hoja.getRange(filaEncontrada + 1, 1, 1, fila.length).setValues([fila]);
+  } else {
+    hoja.appendRow(fila);
+  }
+}
+
+function getOrCreateFolder_(nombre) {
+  var folders = DriveApp.getFoldersByName(nombre);
+  if (folders.hasNext()) return folders.next();
+  return DriveApp.createFolder(nombre);
+}
+
 function doGet(e) {
-  var ss = SpreadsheetApp.openById('TU_ID_DE_HOJA_AQUI');
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
   var tipo = (e.parameter.tipo || 'catalogo');
 
   if (tipo === 'clientes') {
@@ -135,7 +174,8 @@ function doGet(e) {
         iva: datos[i][7],
         total: datos[i][8],
         formaPago: datos[i][9],
-        notas: datos[i][10]
+        notas: datos[i][10],
+        linkPDF: datos[i][11]
       });
     }
     return ContentService.createTextOutput(JSON.stringify(recibos))
@@ -164,7 +204,13 @@ function doGet(e) {
 
 Guarda (Ctrl+S), luego **Implementar → Administrar implementaciones → ícono de lápiz (editar) → Versión: Nueva versión → Implementar**. Así conservas la misma URL `/exec` que ya tienes integrada — no hace falta cambiar nada en ninguno de los archivos HTML.
 
-**Importante:** si tu hoja "Clientes" ya existe (ya la usaste antes), el encabezado de la columna K no se va a poner solo — agrégalo tú a mano: abre tu Sheets, ve a la hoja "Clientes", y escribe `CuentaDestino` en la celda K1. Las ventas nuevas van a caer ahí correctamente.
+**Importante — permisos nuevos:** esta versión usa Google Drive por primera vez (para guardar los PDFs), así que al implementar te va a pedir autorizar un permiso nuevo ("Ver, editar, crear y eliminar tus archivos de Google Drive"). Es normal, acepta con tu cuenta — solo va a tocar la carpeta "Recibos Ambar Blanco" que el script crea solo.
+
+**Importante — columna del link:** en tu hoja de Recibos (la primera pestaña), agrega a mano el encabezado `LinkPDF` en la celda **L1** si esa columna todavía no existe.
+
+**Importante — columna de cuenta destino:** en tu hoja "Clientes", agrega a mano el encabezado `CuentaDestino` en la celda **K1** si esa columna todavía no existe.
+
+**Sobre el problema de "no se refleja":** si ya habías intentado esto antes y no se guardaba, casi seguro fue porque faltó el paso de "Nueva versión" al implementar — guardar el código (Ctrl+S) y desplegarlo son dos pasos distintos. Con este código y siguiendo el paso de implementación completo, debe quedar resuelto.
 
 La hoja "Clientes" se crea sola la primera vez que registres una venta desde `venta.html` — no necesitas crearla a mano.
 

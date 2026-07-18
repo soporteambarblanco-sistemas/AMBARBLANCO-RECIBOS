@@ -850,9 +850,43 @@ function setStatus(type, msg){
   el.textContent = msg;
 }
 
-async function descargarPDF(){
+function armarPayloadRecibo(){
   const folio = generarFolio();
+  const rows = document.querySelectorAll('#itemsBody tr');
+  let items = [];
+  let subtotal = 0;
+  rows.forEach(row => {
+    const desc = row.querySelector('.i-desc').value || '';
+    const cant = parseFloat(row.querySelector('.i-cant').value) || 0;
+    const precio = parseFloat(row.querySelector('.i-precio').value) || 0;
+    if(desc || cant || precio){
+      items.push(`${desc} (x${cant} @ $${precio})`);
+      subtotal += cant * precio;
+    }
+  });
+  const incluirIva = document.getElementById('incluirIva').checked;
+  const iva = incluirIva ? subtotal * 0.16 : 0;
+  const total = subtotal + iva;
+
+  return {
+    folio: folio,
+    fecha: document.getElementById('fecha').value,
+    cliente: document.getElementById('clienteNombre').value,
+    telefono: document.getElementById('clienteTel').value,
+    correo: document.getElementById('clienteCorreo').value,
+    conceptos: items.join(' | '),
+    subtotal: subtotal.toFixed(2),
+    iva: iva.toFixed(2),
+    total: total.toFixed(2),
+    formaPago: document.getElementById('formaPago').value,
+    notas: document.getElementById('notas').value
+  };
+}
+
+async function descargarPDF(){
   const esRecibo = document.getElementById('modoRecibo').checked;
+  const payloadBase = armarPayloadRecibo();
+  const folio = payloadBase.folio;
   const nombreArchivo = (esRecibo ? 'RECIBO' : 'COTIZACION') + folio + '.pdf';
   setStatus('wait', 'Generando PDF...');
 
@@ -899,7 +933,35 @@ async function descargarPDF(){
 
   pdf.addImage(imgData, 'PNG', x, y, renderWidth, renderHeight);
   pdf.save(nombreArchivo);
-  setStatus('ok', 'PDF descargado: ' + nombreArchivo);
+
+  // Subir automáticamente a Drive y ligar el link en Google Sheets (si hay URL configurada)
+  const url = document.getElementById('sheetsUrl').value.trim();
+  if(url && document.getElementById('clienteNombre').value){
+    setStatus('wait', 'PDF descargado. Subiendo copia a Drive...');
+    try{
+      const pdfBase64 = pdf.output('datauristring').split(',')[1];
+      const payload = Object.assign({}, payloadBase, {
+        tipo: 'guardarPDF',
+        nombreArchivo: nombreArchivo,
+        pdfBase64: pdfBase64
+      });
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: {'Content-Type': 'text/plain'},
+        body: JSON.stringify(payload)
+      });
+      const data = await resp.json();
+      if(data && data.link){
+        setStatus('ok', 'PDF descargado y guardado en Drive/Sheets (folio ' + folio + ').');
+      } else {
+        setStatus('ok', 'PDF descargado: ' + nombreArchivo + ' (no se confirmó la subida a Drive).');
+      }
+    }catch(err){
+      setStatus('ok', 'PDF descargado: ' + nombreArchivo + ' (no se pudo subir copia a Drive, revisa tu conexión).');
+    }
+  } else {
+    setStatus('ok', 'PDF descargado: ' + nombreArchivo);
+  }
 }
 
 async function enviarSheets(){
@@ -914,36 +976,8 @@ async function enviarSheets(){
     return;
   }
 
-  const folio = generarFolio();
-  const rows = document.querySelectorAll('#itemsBody tr');
-  let items = [];
-  let subtotal = 0;
-  rows.forEach(row => {
-    const desc = row.querySelector('.i-desc').value || '';
-    const cant = parseFloat(row.querySelector('.i-cant').value) || 0;
-    const precio = parseFloat(row.querySelector('.i-precio').value) || 0;
-    if(desc || cant || precio){
-      items.push(`${desc} (x${cant} @ $${precio})`);
-      subtotal += cant * precio;
-    }
-  });
-  const incluirIva = document.getElementById('incluirIva').checked;
-  const iva = incluirIva ? subtotal * 0.16 : 0;
-  const total = subtotal + iva;
-
-  const payload = {
-    folio: folio,
-    fecha: document.getElementById('fecha').value,
-    cliente: document.getElementById('clienteNombre').value,
-    telefono: document.getElementById('clienteTel').value,
-    correo: document.getElementById('clienteCorreo').value,
-    conceptos: items.join(' | '),
-    subtotal: subtotal.toFixed(2),
-    iva: iva.toFixed(2),
-    total: total.toFixed(2),
-    formaPago: document.getElementById('formaPago').value,
-    notas: document.getElementById('notas').value
-  };
+  const payload = armarPayloadRecibo();
+  const folio = payload.folio;
 
   setStatus('wait', 'Guardando en Google Sheets...');
   try{
